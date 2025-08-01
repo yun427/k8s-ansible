@@ -5,11 +5,11 @@
     dest: /root/kube-flannel.yml
 
 - name: 应用flannel配置
-  command: kubectl apply -f /root/kube-flannel.yml
+  command: "{{ kubectl_path.stdout }} apply -f /root/kube-flannel.yml"
 
 - name: 检查flannel状态
-  command: kubectl get pods -n kube-system -l app=flannel
+  command: "{{ kubectl_path.stdout }} get pods -n kube-system -l app=flannel"
   register: flannel_result
-  until: flannel_result.stdout.find('Running') != -1
+  until: "'Running' in flannel_result.stdout"
   retries: 10
   delay: 10

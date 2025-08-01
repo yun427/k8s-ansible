@@ -33,3 +33,11 @@
     name: docker
     state: started
     enabled: yes
+- name: 验证Docker版本
+  command: docker --version
+  register: docker_version
+  changed_when: false
+
+- name: 显示Docker版本
+  debug:
+    var: docker_version.stdout

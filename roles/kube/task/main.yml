@@ -20,7 +20,30 @@
       - "kubectl-{{ kube_version }}"
     state: present
 
+- name: 验证kubectl安装
+  command: which kubectl
+  register: kubectl_path
+  changed_when: false
+  ignore_errors: true
+
+- name: 显示kubectl路径
+  debug:
+    var: kubectl_path.stdout
+
 - name: 启用kubelet服务
   systemd:
     name: kubelet
     enabled: yes
+
+- name: 启动kubelet服务
+  systemd:
+    name: kubelet
+    state: started
+    enabled: yes
+
+- name: 设置环境变量
+  lineinfile:
+    path: /etc/environment
+    line: "PATH=/usr/bin:{{ ansible_env.PATH }}"
+    regexp: '^PATH='
+    state: present

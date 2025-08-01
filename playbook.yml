@@ -27,5 +27,5 @@
   tasks:
     - name: 修改kube-proxy为iptables模式
       shell: |
-        /usr/bin/kubectl patch cm kube-proxy -n kube-system -p '{"data":{"mode":"iptables"}}'
-          /usr/bin/kubectl -n kube-system rollout restart daemonset/kube-proxy
+        {{ kubectl_path.stdout }} patch cm kube-proxy -n kube-system -p '{"data":{"mode":"iptables"}}'
+         {{ kubectl_path.stdout }} -n kube-system rollout restart daemonset/kube-proxy
