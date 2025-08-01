@@ -3,29 +3,29 @@
   hosts: k8s_cluster
   become: yes
   roles:
-    - common
-    - docker
-    - kube
+    - role: common
+    - role: docker
+    - role: kube
 
 - name: 初始化Master节点
   hosts: k8s_master
   become: yes
   roles:
-    - master
+    - role: master
 
 - name: 加入Node节点
   hosts: k8s_nodes
   become: yes
   roles:
-    - node
+    - role: node
 
 - name: 安装网络插件
   hosts: k8s_master
   become: yes
   roles:
-    - flannel
+    - role: flannel
   tasks:
     - name: 修改kube-proxy为iptables模式
       shell: |
-        kubectl get cm kube-proxy -n kube-system -o yaml | sed 's/mode: ""/mode: "iptables"/' | kubectl apply -f -
-        kubectl -n kube-system rollout restart daemonsets.apps kube-proxy
+        /usr/bin/kubectl get cm kube-proxy -n kube-system -o yaml | sed 's/mode: ""/mode: "iptables"/' | /usr/bin/kubectl apply -f -
+        /usr/bin/kubectl -n kube-system rollout restart daemonsets.apps kube-proxy
