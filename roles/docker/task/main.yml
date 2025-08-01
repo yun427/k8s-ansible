@@ -1,0 +1,35 @@
+---
+- name: 添加Docker仓库
+  get_url:
+    url: https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+    dest: /etc/yum.repos.d/docker-ce.repo
+
+- name: 安装指定版本Docker
+  yum:
+    name:
+      - "docker-ce-{{ docker_version }}"
+      - "docker-ce-cli-{{ docker_version }}"
+    state: present
+
+- name: 创建Docker配置目录
+  file:
+    path: /etc/docker
+    state: directory
+
+- name: 配置Docker daemon
+  copy:
+    dest: /etc/docker/daemon.json
+    content: |
+      {
+        "registry-mirrors": {{ docker_registry_mirrors | to_json }},
+        "exec-opts": ["native.cgroupdriver=systemd"],
+        "log-driver": "json-file",
+        "log-opts": {"max-size": "100m"},
+        "storage-driver": "overlay2"
+      }
+
+- name: 启动并启用Docker
+  systemd:
+    name: docker
+    state: started
+    enabled: yes

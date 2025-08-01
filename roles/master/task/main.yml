@@ -1,0 +1,27 @@
+---
+- name: 初始化Kubernetes Master
+  command: >
+    kubeadm init
+    --kubernetes-version {{ kube_version }}
+    --apiserver-advertise-address=0.0.0.0
+    --service-cidr=10.96.0.0/16
+    --pod-network-cidr={{ pod_network_cidr }}
+    --image-repository registry.aliyuncs.com/google_containers
+  args:
+    creates: /etc/kubernetes/admin.conf
+
+- name: 配置kubectl
+  block:
+    - name: 创建.kube目录
+      file:
+        path: /root/.kube
+        state: directory
+
+    - name: 复制配置文件
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: yes
+        owner: root
+        group: root
+        mode: 0600

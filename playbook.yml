@@ -1,0 +1,43 @@
+---
+- name: 配置所有Kubernetes节点
+  hosts: k8s_cluster
+  become: yes
+  roles:
+    - common
+    - docker
+    - kube
+
+- name: 初始化Master节点
+  hosts: k8s_master
+  become: yes
+  roles:
+    - master
+
+- name: 加入Node节点
+  hosts: k8s_nodes
+  become: yes
+  roles:
+    - node
+
+- name: 安装网络插件
+  hosts: k8s_master
+  become: yes
+  tasks:
+    - name: 下载flannel配置文件
+      get_url:
+        url: https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+        dest: /root/kube-flannel.yml
+
+    - name: 修改flannel网络CIDR
+      replace:
+        path: /root/kube-flannel.yml
+        regexp: 'net-conf.json: \|'
+        replace: 'net-conf.json: |\n        { "Network": "{{ pod_network_cidr }}", "Backend": {"Type": "vxlan"} }'
+
+    - name: 应用flannel配置
+      command: kubectl apply -f /root/kube-flannel.yml
+
+    - name: 修改kube-proxy为iptables模式
+      shell: |
+        kubectl get cm kube-proxy -n kube-system -o yaml | sed 's/mode: ""/mode: "iptables"/' | kubectl apply -f -
+        kubectl -n kube-system rollout restart daemonsets.apps kube-proxy
