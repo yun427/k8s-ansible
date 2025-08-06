@@ -1,0 +1,10 @@
+# 全局配置
+docker_version: "19.03.9-3.el7"
+k8s_version: "1.18.8"
+pod_network_cidr: "10.246.0.0/16"
+
+# 国内镜像源
+docker_registry_mirrors:
+  - "https://gqs7xcfd.mirror.aliyuncs.com"
+  - "https://hub-mirror.c.163.com"
+k8s_image_repository: "registry.aliyuncs.com/google_containers"

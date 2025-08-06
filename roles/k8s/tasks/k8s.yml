@@ -1,0 +1,99 @@
+- name: 添加Kubernetes阿里云源
+  copy:
+    content: |
+      [kubernetes]
+      name=Kubernetes
+      baseurl=https://mirrors.aliyun.com/kubernetes/yum/repos/kubernetes-el7-x86_64/
+      enabled=1
+      gpgcheck=1
+      repo_gpgcheck=1
+      gpgkey=https://mirrors.aliyun.com/kubernetes/yum/doc/yum-key.gpg
+              https://mirrors.aliyun.com/kubernetes/yum/doc/rpm-package-key.gpg
+    dest: /etc/yum.repos.d/kubernetes.repo
+
+- name: 安装K8s组件
+  yum:
+    name:
+      - "kubelet-{{ k8s_version }}"
+      - "kubeadm-{{ k8s_version }}"
+      - "kubectl-{{ k8s_version }}"
+    state: present
+    
+- name: 配置kubelet使用systemd驱动
+  lineinfile:
+    path: /etc/sysconfig/kubelet
+    line: "KUBELET_EXTRA_ARGS=--cgroup-driver=systemd --hairpin-mode=hairpin-veth --network-plugin=cni"
+    create: yes
+
+- name: 启用kubelet
+  systemd:
+    name: kubelet
+    enabled: yes
+
+- name: 初始化Master节点 (仅master)
+  shell: |
+    kubeadm init \
+      --kubernetes-version {{ k8s_version }} \
+      --apiserver-advertise-address=0.0.0.0 \
+      --service-cidr=10.97.0.0/16 \
+      --pod-network-cidr={{ pod_network_cidr }} \
+      --image-repository {{ k8s_image_repository }} \
+      --ignore-preflight-errors=Swap \
+      --upload-certs  # 添加证书上传
+  when: "'master' in group_names"
+  register: kubeadm_init
+
+- name: 获取节点加入命令
+  shell: |
+    kubeadm token create --print-join-command
+  when: "'master' in group_names"
+  register: join_command
+  changed_when: false
+
+- name: 分发加入命令到Node节点
+  delegate_to: "{{ item }}"
+  copy:
+    content: "{{ hostvars[groups['master'][0]]['join_command']['stdout'] }}"
+    dest: /tmp/join.sh
+    mode: 0755
+  with_items: "{{ groups['node'] }}"
+  when: "'master' in group_names"
+
+
+- name: 执行节点加入命令 (仅node)
+  shell: /tmp/join.sh
+  when: "'node' in group_names"
+  register: join_result
+  args:
+    creates: /etc/kubernetes/kubelet.conf
+  ignore_errors: true
+
+- name: 显示加入结果（调试用）
+  debug:
+    var: join_result.stdout
+  when: join_result is defined
+
+- name: 创建CNI配置目录 (所有节点)
+  file:
+    path: /etc/cni/net.d
+    state: directory
+    mode: 0755
+
+- name: 验证CNI配置 (所有节点)
+  shell: |
+    ls -l /etc/cni/net.d/
+    cat /etc/cni/net.d/* || true
+  register: cni_check
+  changed_when: false
+
+- name: 显示CNI配置检查结果
+  debug:
+    var: cni_check.stdout_lines
+
+- name: 配置kubectl (仅master)
+  shell: |
+    mkdir -p $HOME/.kube
+    cp -f /etc/kubernetes/admin.conf $HOME/.kube/config
+    chown $(id -u):$(id -g) $HOME/.kube/config
+    echo "export KUBECONFIG=/etc/kubernetes/admin.conf" >> /root/.bashrc
+  when: "'master' in group_names"

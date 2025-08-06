@@ -1,0 +1,78 @@
+- name: 安装依赖
+  yum: 
+    name: wget
+    state: present
+
+- name: 添加Docker阿里云源
+  get_url:
+    url: https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+    dest: /etc/yum.repos.d/docker-ce.repo
+
+- name: 卸载旧版本Docker
+  yum:
+    name:
+      - "docker"
+      - "docker-client"
+      - "docker-client-latest"
+      - "docker-common"
+      - "docker-latest"
+      - "docker-latest-logrotate"
+      - "docker-logrotate"
+      - "docker-engine"
+    state: absent
+  ignore_errors: true
+
+- name: 删除残留Docker文件
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /var/lib/docker
+    - /etc/docker
+  ignore_errors: true
+
+- name: 安装指定版本Docker
+  yum:
+    name:
+      - "docker-ce-{{ docker_version }}"
+      - "docker-ce-cli-{{ docker_version }}"
+    state: present
+
+- name: 创建Docker配置目录
+  file:
+    path: /etc/docker
+    state: directory
+
+- name: 配置Docker镜像加速
+  copy:
+    content: |
+      {
+        "registry-mirrors": {{ docker_registry_mirrors | to_json }},
+        "exec-opts": ["native.cgroupdriver=systemd"],
+        "log-driver": "json-file",
+        "log-opts": { "max-size": "100m" },
+        "storage-driver": "overlay2",
+        "mtu": 1450,  # 与 Flannel MTU 匹配
+        "ip-masq": false  # 禁用 Docker 的 IP 伪装
+      }
+    dest: /etc/docker/daemon.json
+
+- name: 启动Docker服务
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+    
+- name: 清理Docker网络配置
+  shell: |
+    systemctl stop docker
+    ip link delete docker0 || true
+    ip link delete flannel.1 || true
+    rm -f /var/lib/cni/flannel/*
+    systemctl start docker
+
+- name: 重启Docker服务
+  systemd:
+    name: docker
+    state: restarted
+    enabled: yes

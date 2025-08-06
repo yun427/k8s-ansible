@@ -1,0 +1,14 @@
+- hosts: k8s
+  gather_facts: yes
+  become: yes
+  roles:
+    - k8s
+
+  handlers:
+    - name: reboot_host
+      reboot:
+        msg: "Reboot for SELinux changes"
+        connect_timeout: 5
+        reboot_timeout: 600
+        pre_reboot_delay: 0
+        post_reboot_delay: 30

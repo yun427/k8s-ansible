@@ -1,0 +1,54 @@
+- name: 等待API Server就绪 (仅master)
+  shell: |
+    until curl -k https://localhost:6443/healthz; do
+      echo "等待API Server启动..."
+      sleep 10
+    done
+  when: "'master' in group_names"
+  register: api_wait
+  until: api_wait.rc == 0
+  retries: 12
+  delay: 10
+  
+- name: 清理旧Flannel配置 (仅master)
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf delete -f /root/kube-flannel.yml --ignore-not-found
+    rm -f /etc/cni/net.d/*
+    systemctl restart kubelet
+  when: "'master' in group_names"
+
+- name: 部署Flannel网络 (仅master)
+  template:
+    src: kube-flannel.yml.j2
+    dest: /root/kube-flannel.yml
+  when: "'master' in group_names"
+
+- name: 应用Flannel配置
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf apply -f /root/kube-flannel.yml
+    sleep 30  # 等待Pod创建
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf -n kube-system rollout restart daemonset kube-flannel-ds
+  when: "'master' in group_names"
+
+- name: 验证CNI配置文件 (所有节点)
+  shell: |
+    ls -l /etc/cni/net.d/
+    cat /etc/cni/net.d/* || true
+  register: cni_check
+  changed_when: false
+
+- name: 显示CNI配置检查结果
+  debug:
+    var: cni_check.stdout_lines
+
+- name: 复制flannel到/opt/cni/bin目录 (所有节点)
+  copy:
+    src: ../tasks/flannel
+    dest: /opt/cni/bin/flannel
+    mode: '0755'
+
+- name: 重启kubelet服务 (所有节点)
+  systemd:
+    name: kubelet
+    state: restarted
+    enabled: yes
